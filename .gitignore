@@ -1,0 +1,19 @@
+# === 版权文件（勿推送到公开仓库）===
+*.pdf
+
+# === Python ===
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+*.egg-info/
+
+# === macOS ===
+.DS_Store
+
+# === IDE ===
+.vscode/
+.idea/
+
+# === 原书仓库的 CI 配置（推送后会触发无效的 Actions，排除）===
+LLMs-from-scratch-main/.github/
+LLMs-from-scratch-main/.gitmodules

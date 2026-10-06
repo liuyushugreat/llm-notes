@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>从零构建大语言模型 · 知识图谱</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root {
+    --bg: #f7f8fb;
+    --card: #ffffff;
+    --text: #1a1d29;
+    --text-soft: #5b6270;
+    --border: #e6e8ef;
+    --accent: #5b5bd6;
+    --accent-2: #7c3aed;
+    --accent-soft: #eef0ff;
+    --green: #16a34a;
+    --green-soft: #e9f9ef;
+    --amber: #d97706;
+    --amber-soft: #fef4e5;
+    --red: #dc2626;
+    --red-soft: #fdecec;
+    --blue: #2563eb;
+    --blue-soft: #e8f0fe;
+    --sidebar-bg: #14162b;
+    --sidebar-text: #a9adc7;
+    --shadow: 0 1px 2px rgba(16,18,32,.05), 0 8px 24px -12px rgba(16,18,32,.12);
+  }
+  [data-theme="dark"] {
+    --bg: #0f1117;
+    --card: #171a23;
+    --text: #e6e8f0;
+    --text-soft: #9aa1b5;
+    --border: #262a38;
+    --accent-soft: #262748;
+    --green-soft: #13301d;
+    --amber-soft: #332610;
+    --red-soft: #331818;
+    --blue-soft: #16253d;
+    --sidebar-bg: #0b0d16;
+    --sidebar-text: #8a90a8;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.5);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.7;
+    transition: background .25s, color .25s;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ===== Sidebar ===== */
+  .sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0; width: 268px;
+    background: var(--sidebar-bg); color: var(--sidebar-text);
+    overflow-y: auto; padding: 20px 16px; z-index: 50;
+    transition: transform .25s;
+  }
+  .sidebar::-webkit-scrollbar { width: 6px; }
+  .sidebar::-webkit-scrollbar-thumb { background:#343852; border-radius:3px; }
+  .side-brand { display:flex; align-items:center; gap:10px; padding: 6px 8px 18px; }
+  .side-brand .logo {
+    width: 36px; height: 36px; border-radius: 10px; flex:none;
+    background: linear-gradient(135deg,#6366f1,#a855f7);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; color:#fff; font-size:16px;
+  }
+  .side-brand .t { font-size: 13px; font-weight: 700; color:#fff; line-height:1.25; }
+  .side-brand .s { font-size: 11px; color:#7f86a8; }
+  .progress-wrap { padding: 0 6px 14px; }
+  .progress-label { display:flex; justify-content:space-between; font-size:11px; color:#7f86a8; margin-bottom:6px; }
+  .progress-bar { height:6px; border-radius:3px; background:#2a2d45; overflow:hidden; }
+  .progress-fill { height:100%; width:0; border-radius:3px;
+    background: linear-gradient(90deg,#6366f1,#a855f7); transition: width .3s; }
+  .side-nav a {
+    display:flex; align-items:center; gap:9px; padding: 8px 10px; border-radius: 9px;
+    color: var(--sidebar-text); font-size: 13px; margin-bottom: 2px; transition: .15s;
+  }
+  .side-nav a:hover { background:#1f2338; color:#fff; text-decoration:none; }
+  .side-nav a.active { background: linear-gradient(90deg,#2b2f4d,#20243c); color:#fff; }
+  .side-nav .num {
+    width: 22px; height: 22px; border-radius: 6px; flex:none;
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:700; background:#2a2d45; color:#a5aad2;
+  }
+  .side-nav a.active .num { background:linear-gradient(135deg,#6366f1,#a855f7); color:#fff; }
+  .side-sec-title { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:#5f6580; padding:16px 10px 6px; }
+
+  .burger { display:none; position:fixed; top:14px; left:14px; z-index:60;
+    background:var(--card); border:1px solid var(--border); border-radius:10px;
+    padding:8px 10px; cursor:pointer; box-shadow:var(--shadow); }
+
+  /* ===== Main ===== */
+  .main { margin-left: 268px; padding: 0 40px 80px; }
+  .theme-toggle {
+    position: fixed; top: 16px; right: 20px; z-index: 60;
+    background: var(--card); border:1px solid var(--border); color: var(--text);
+    border-radius: 999px; padding: 8px 14px; cursor:pointer; font-size:13px;
+    box-shadow: var(--shadow); transition:.15s;
+  }
+  .theme-toggle:hover { transform: translateY(-1px); }
+
+  /* ===== Hero ===== */
+  .hero {
+    position: relative; overflow:hidden;
+    background: linear-gradient(135deg,#1e1b4b 0%,#312e81 40%,#5b21b6 100%);
+    color:#fff; border-radius: 0 0 28px 28px;
+    padding: 56px 40px 48px; margin: 0 -40px 36px;
+  }
+  .hero::after {
+    content:""; position:absolute; right:-80px; top:-80px; width:340px; height:340px;
+    background: radial-gradient(circle, rgba(168,85,247,.5), transparent 70%);
+  }
+  .hero::before {
+    content:""; position:absolute; left:30%; bottom:-140px; width:400px; height:400px;
+    background: radial-gradient(circle, rgba(99,102,241,.4), transparent 70%);
+  }
+  .hero-inner { position:relative; z-index:2; max-width: 900px; }
+  .hero .tag {
+    display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600;
+    background: rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.22);
+    padding: 5px 12px; border-radius:999px; margin-bottom:18px; backdrop-filter: blur(4px);
+  }
+  .hero h1 { font-size: 34px; line-height:1.25; font-weight:800; letter-spacing:-.01em; margin-bottom:10px; }
+  .hero h1 .grad { background:linear-gradient(90deg,#c4b5fd,#f0abfc); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  .hero p.sub { font-size:15px; color:#c7cbe8; max-width: 680px; margin-bottom: 8px; }
+  .hero .meta { font-size: 12.5px; color:#9ba0c9; }
+  .hero .cta-row { display:flex; gap:10px; flex-wrap:wrap; margin-top: 24px; }
+  .cta {
+    display:inline-flex; align-items:center; gap:8px; font-size:13.5px; font-weight:600;
+    padding: 10px 18px; border-radius: 11px; text-decoration:none !important; transition:.15s;
+  }
+  .cta.primary { background:#fff; color:#312e81; box-shadow:0 8px 20px -8px rgba(0,0,0,.4); }
+  .cta.primary:hover { transform: translateY(-2px); }
+  .cta.ghost { background: rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.25); }
+  .cta.ghost:hover { background: rgba(255,255,255,.2); }
+
+  /* ===== Roadmap ===== */
+  .roadmap { display:grid; grid-template-columns: repeat(3,1fr); gap:16px; margin: 34px 0; }
+  .stage {
+    background: var(--card); border:1px solid var(--border); border-radius:16px;
+    padding: 20px; position:relative; overflow:hidden; box-shadow:var(--shadow);
+  }
+  .stage .st-num {
+    position:absolute; right:14px; top:10px; font-size:64px; font-weight:800;
+    color: var(--accent-soft); line-height:1; opacity:.9;
+  }
+  .stage .st-badge { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; margin-bottom:8px; }
+  .stage h3 { font-size:17px; margin-bottom:6px; }
+  .stage p { font-size:13px; color:var(--text-soft); }
+  .stage .st-ch { font-size:12px; margin-top:10px; color:var(--text-soft); }
+  .stage .st-ch b { color:var(--accent); }
+  .stage.s1 .st-badge { color:#7c3aed; } .stage.s1 { border-top:3px solid #7c3aed; }
+  .stage.s2 .st-badge { color:#2563eb; } .stage.s2 { border-top:3px solid #2563eb; }
+  .stage.s3 .st-badge { color:#16a34a; } .stage.s3 { border-top:3px solid #16a34a; }
+
+  /* ===== Section / Chapter ===== */
+  .section-title { margin: 48px 0 20px; }
+  .section-title h2 { font-size: 22px; font-weight:800; display:flex; align-items:center; gap:10px; }
+  .section-title h2 .bar { width:5px; height:22px; border-radius:3px; background:linear-gradient(180deg,#6366f1,#a855f7); }
+  .section-title p { font-size:13.5px; color:var(--text-soft); margin-top:4px; }
+
+  .chapter {
+    background: var(--card); border:1px solid var(--border); border-radius:18px;
+    margin-bottom: 22px; overflow:hidden; box-shadow:var(--shadow);
+    scroll-margin-top: 24px;
+  }
+  .chapter-head {
+    display:flex; align-items:flex-start; gap:16px; padding: 22px 24px 18px;
+    cursor:pointer; user-select:none;
+  }
+  .ch-num {
+    width: 48px; height: 48px; flex:none; border-radius: 13px; font-weight:800; font-size:19px;
+    display:flex; align-items:center; justify-content:center; color:#fff;
+    background: linear-gradient(135deg,#6366f1,#8b5cf6);
+  }
+  .ch-head-main { flex:1; min-width:0; }
+  .ch-head-main h3 { font-size:18.5px; font-weight:800; line-height:1.3; }
+  .ch-head-main .en { font-size:12.5px; color:var(--text-soft); margin-top:2px; }
+  .ch-head-main .goal { font-size:13px; color:var(--text-soft); margin-top:8px; }
+  .ch-head-main .goal b { color:var(--accent); }
+  .ch-toggle { color:var(--text-soft); font-size:20px; flex:none; margin-top:10px; transition:transform .2s; }
+  .chapter.collapsed .ch-toggle { transform: rotate(-90deg); }
+  .chapter.collapsed .chapter-body { display:none; }
+
+  .chapter-body { padding: 0 24px 22px; border-top: 1px dashed var(--border); }
+  .ch-block { margin-top: 18px; }
+  .ch-block > .label {
+    font-size:11.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--accent); display:flex; align-items:center; gap:6px; margin-bottom:10px;
+  }
+  .ch-block > .label .ic { font-size:14px; }
+
+  /* knowledge points */
+  .kp { display:grid; gap:7px; }
+  .kp-item {
+    display:flex; gap:10px; align-items:flex-start; padding:10px 12px;
+    border:1px solid var(--border); border-radius:11px; background: var(--bg);
+    transition:.15s;
+  }
+  .kp-item:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .kp-item input[type=checkbox] {
+    appearance:none; -webkit-appearance:none; width:18px; height:18px; flex:none; margin-top:2px;
+    border:2px solid #c3c8d8; border-radius:6px; cursor:pointer; position:relative; transition:.15s;
+  }
+  .kp-item input[type=checkbox]:checked { background:var(--green); border-color:var(--green); }
+  .kp-item input[type=checkbox]:checked::after {
+    content:"✓"; position:absolute; left:2px; top:-2px; color:#fff; font-size:12px; font-weight:800;
+  }
+  .kp-item .txt { font-size:13.5px; }
+  .kp-item .txt b { color:var(--text); }
+  .kp-item .txt .hint { color:var(--text-soft); font-size:12.5px; }
+  .kp-item.done .txt { text-decoration: line-through; opacity:.55; }
+
+  /* code links */
+  .codes { display:grid; grid-template-columns: repeat(auto-fill,minmax(230px,1fr)); gap:9px; }
+  .code-link {
+    display:flex; align-items:center; gap:10px; padding:10px 12px;
+    border:1px solid var(--border); border-radius:11px; background:var(--bg);
+    color:var(--text); transition:.15s; font-size:13px;
+  }
+  .code-link:hover { border-color:var(--accent); background:var(--accent-soft); text-decoration:none; transform: translateY(-1px); }
+  .code-link .ext {
+    flex:none; width:34px; height:26px; display:flex; align-items:center; justify-content:center;
+    font-size:10px; font-weight:800; border-radius:6px; letter-spacing:.02em;
+  }
+  .ext.py { background:#3572A5; color:#fff; }
+  .ext.ipynb { background:#F37726; color:#fff; }
+  .ext.json { background:#5b5bd6; color:#fff; }
+  .ext.txt { background:#64748b; color:#fff; }
+  .ext.dir { background:#16a34a; color:#fff; }
+  .code-link .fn { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:"SF Mono",Menlo,Consolas,monospace; font-size:12.5px; }
+  .code-link .d { font-size:11px; color:var(--text-soft); flex:none; }
+
+  /* formula box */
+  .formula {
+    background: var(--bg); border:1px solid var(--border); border-left:4px solid var(--accent);
+    border-radius: 11px; padding: 14px 16px; overflow-x:auto;
+  }
+  .formula .f-name { font-size:12px; font-weight:700; color:var(--text-soft); margin-bottom:6px; }
+
+  /* config box */
+  .config { display:flex; flex-wrap:wrap; gap:8px; }
+  .cfg {
+    background: var(--bg); border:1px solid var(--border); border-radius:10px;
+    padding:9px 12px; min-width:110px; text-align:center;
+  }
+  .cfg .v { font-size:15px; font-weight:800; color:var(--accent); font-family:"SF Mono",Menlo,Consolas,monospace; }
+  .cfg .k { font-size:11px; color:var(--text-soft); margin-top:2px; }
+
+  .note {
+    display:flex; gap:10px; padding:12px 14px; border-radius:11px; font-size:13px; margin-top:12px;
+  }
+  .note.tip { background:var(--blue-soft); color:var(--blue); }
+  .note.warn { background:var(--amber-soft); color:var(--amber); }
+  .note.good { background:var(--green-soft); color:var(--green); }
+  .note .ni { font-weight:800; flex:none; }
+
+  /* formula refs */
+  .grid2 { display:grid; grid-template-columns: repeat(auto-fit,minmax(300px,1fr)); gap:14px; }
+
+  footer { margin-top:50px; padding:26px 0 10px; border-top:1px solid var(--border); color:var(--text-soft); font-size:12.5px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+
+  @media (max-width: 900px) {
+    .sidebar { transform: translateX(-100%); }
+    .sidebar.open { transform: translateX(0); box-shadow: 0 0 60px rgba(0,0,0,.5); }
+    .main { margin-left:0; padding:0 18px 70px; }
+    .hero { margin:0 -18px 28px; border-radius:0 0 22px 22px; padding:42px 20px 36px; }
+    .hero h1 { font-size:26px; }
+    .roadmap { grid-template-columns:1fr; }
+    .burger { display:block; }
+    .theme-toggle { top:14px; right:14px; }
+  }
+</style>
+</head>
+<body data-theme="light">
+<button class="burger" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+<button class="theme-toggle" onclick="toggleTheme()">🌙 深色模式</button>
+
+<!-- ===================== SIDEBAR ===================== -->
+<aside class="sidebar">
+  <div class="side-brand">
+    <div class="logo">LLM</div>
+    <div>
+      <div class="t">从零构建大语言模型</div>
+      <div class="s">Sebastian Raschka · 知识图谱</div>
+    </div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-label"><span>学习进度</span><span id="progressPct">0%</span></div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+  <nav class="side-nav" id="sideNav">
+    <a href="#roadmap">🧭 学习路线图</a>
+    <a href="#formulas">📐 核心公式</a>
+    <div class="side-sec-title">章节导航</div>
+    <a href="#ch1"><span class="num">1</span> 理解大语言模型</a>
+    <a href="#ch2"><span class="num">2</span> 处理文本数据</a>
+    <a href="#ch3"><span class="num">3</span> 注意力机制</a>
+    <a href="#ch4"><span class="num">4</span> 实现 GPT 模型</a>
+    <a href="#ch5"><span class="num">5</span> 无标注预训练</a>
+    <a href="#ch6"><span class="num">6</span> 分类微调</a>
+    <a href="#ch7"><span class="num">7</span> 指令微调</a>
+    <div class="side-sec-title">附录 & 扩展</div>
+    <a href="#appendix"><span class="num">A</span> PyTorch 入门</a>
+    <a href="#appendix-d"><span class="num">D</span> 训练循环增强</a>
+    <a href="#appendix-e"><span class="num">E</span> LoRA 高效微调</a>
+    <a href="#extras"><span class="num">+</span> 进阶扩展代码</a>
+  </nav>
+</aside>
+
+<div class="main">
+
+<!-- ===================== HERO ===================== -->
+<header class="hero">
+  <div class="hero-inner">
+    <div class="tag">📖 Build a Large Language Model (From Scratch) · Sebastian Raschka</div>
+    <h1>从零构建大语言模型<br><span class="grad">七章掌握 LLM 核心原理</span></h1>
+    <p class="sub">本书带你亲手用 PyTorch 实现一个 GPT 类模型：从词元化、注意力机制、Transformer 架构，到预训练、分类微调与指令微调。本页将全书关键知识点结构化，并直接链接到本仓库对应的源码，助你快速上手、独立写一个大模型。</p>
+    <div class="meta">共 7 章 + 5 个附录 · 约 300 页 · 最终产物：可对话 / 可分类的 1.24 亿参数 GPT 模型</div>
+    <div class="cta-row">
+      <a class="cta primary" href="#roadmap">🚀 开始学习</a>
+      <a class="cta ghost" href="#ch4">⚙️ 直接看 GPT 实现</a>
+      <a class="cta ghost" href="https://github.com/liuyushugreat/llm-notes/tree/main/LLMs-from-scratch-main/">📁 打开代码仓库</a>
+    </div>
+  </div>
+</header>
+
+<!-- ===================== ROADMAP ===================== -->
+<section id="roadmap">
+  <div class="section-title">
+    <h2><span class="bar"></span>学习路线图：三大阶段</h2>
+    <p>构建并使用一个大语言模型的完整生命周期，对应全书章节安排。</p>
+  </div>
+  <div class="roadmap">
+    <div class="stage s1">
+      <div class="st-num">1</div>
+      <div class="st-badge">Stage 1 · 基础架构</div>
+      <h3>搭建 LLM 架构与数据准备</h3>
+      <p>实现词元化、位置编码、注意力机制、Transformer 块，完成 GPT 模型本体。</p>
+      <div class="st-ch"><b>第 1–4 章</b> · 从概念到可生成文本的模型</div>
+    </div>
+    <div class="stage s2">
+      <div class="st-num">2</div>
+      <div class="st-badge">Stage 2 · 预训练</div>
+      <h3>无标注数据预训练 → 基座模型</h3>
+      <p>在大规模未标注语料上预训练，学习通用语言能力，得到 foundation model。</p>
+      <div class="st-ch"><b>第 5 章</b> · 损失计算 / 训练循环 / 解码策略</div>
+    </div>
+    <div class="stage s3">
+      <div class="st-num">3</div>
+      <div class="st-badge">Stage 3 · 微调</div>
+      <h3>微调为个人助理 / 文本分类器</h3>
+      <p>在带标签数据上微调，让基座模型学会遵循指令或完成分类任务。</p>
+      <div class="st-ch"><b>第 6–7 章</b> · 分类微调 + 指令微调</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== CHAPTERS ===================== -->
+<div class="section-title">
+  <h2><span class="bar"></span>章节知识结构</h2>
+  <p>每章包含「核心目标 · 关键知识点 · 核心公式/配置 · 对应源码」。勾选知识点即可记录进度（自动保存）。</p>
+</div>
+
+<!-- ============ CH1 ============ -->
+<section class="chapter" id="ch1">
+  <div class="chapter-head" onclick="toggleCh(this)">
+    <div class="ch-num">1</div>
+    <div class="ch-head-main">
+      <h3>理解大语言模型</h3>
+      <div class="en">Understanding Large Language Models</div>
+      <div class="goal">🎯 <b>目标：</b>建立 LLM 的整体认知——它是什么、能做什么、Transformer 与 GPT 架构长什么样，以及构建它的完整流程。</div>
+    </div>
+    <div class="ch-toggle">▾</div>
+  </div>
+  <div class="chapter-body">
+    <div class="ch-block">
+      <div class="label"><span class="ic">🧩</span> 关键知识点</div>
+      <div class="kp">
+        <label class="kp-item"><input type="checkbox" data-kp="LLM 定义：基于深度神经网络、在海量文本上训练、能理解并生成类人文本"><span class="txt"><b>什么是 LLM</b>：在海量文本上训练、能理解并生成类人文本的深度神经网络 <span class="hint">（GPT 是代表性架构）</span></span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="LLM 应用"><span class="txt"><b>典型应用</b>：写作、翻译、摘要、问答、代码生成、情感分析、聊天助手</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="三阶段流程"><span class="txt"><b>三阶段流程</b>：① 架构+数据准备 → ② 无标注预训练 → ③ 有标注微调</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="Transformer 两大部分"><span class="txt"><b>Transformer 架构</b>：编码器（Encoder）+ 解码器（Decoder），核心是自注意力机制 <span class="hint">（GPT 只使用解码器部分）</span></span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="GPT 架构要点"><span class="txt"><b>GPT 架构</b>：基于 Transformer 解码器的自回归模型，逐 token 预测下一个词</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="构建 LLM 的步骤"><span class="txt"><b>构建步骤</b>：准备数据 → 设计架构 → 预训练 → 微调 → 部署使用</span></label>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">📄</span> 对应源码</div>
+      <div class="codes">
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch01/reading-recommendations.md"><span class="ext txt">md</span><span class="fn">reading-recommendations.md</span><span class="d">推荐阅读</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/README.md"><span class="ext txt">md</span><span class="fn">README.md</span><span class="d">仓库总览</span></a>
+      </div>
+    </div>
+    <div class="note tip"><span class="ni">💡</span><span>第 1 章是纯概念章，无代码实现。建议快速通读，把「三阶段」和「Transformer 结构」刻进脑子里，后面每一章都是它们的落地。</span></div>
+  </div>
+</section>
+
+<!-- ============ CH2 ============ -->
+<section class="chapter" id="ch2">
+  <div class="chapter-head" onclick="toggleCh(this)">
+    <div class="ch-num">2</div>
+    <div class="ch-head-main">
+      <h3>处理文本数据</h3>
+      <div class="en">Working with Text Data</div>
+      <div class="goal">🎯 <b>目标：</b>把原始文本变成模型能计算的张量——词元化、词表构建、滑动窗口采样、词嵌入与位置编码。</div>
+    </div>
+    <div class="ch-toggle">▾</div>
+  </div>
+  <div class="chapter-body">
+    <div class="ch-block">
+      <div class="label"><span class="ic">🧩</span> 关键知识点</div>
+      <div class="kp">
+        <label class="kp-item"><input type="checkbox" data-kp="词嵌入概念"><span class="txt"><b>词嵌入</b>：把离散 token 映射为连续向量，语义相近的词向量也相近</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="分词"><span class="txt"><b>词元化（Tokenization）</b>：把文本切分为词元，再映射到唯一整数 ID</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="特殊 token"><span class="txt"><b>特殊上下文 token</b>：<code>&lt;|endoftext|&gt;</code> 分隔文档，<code>&lt;|unk|&gt;</code> 表示未知词</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="BPE"><span class="txt"><b>字节对编码（BPE）</b>：把罕见词拆成子词单元，平衡词表大小与覆盖率 <span class="hint">（GPT-2 词表 50,257）</span></span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="滑动窗口"><span class="txt"><b>滑动窗口采样</b>：用固定窗口切出「输入序列 → 目标 token」训练样本对</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="token 嵌入"><span class="txt"><b>Token 嵌入层</b>：<code>nn.Embedding(vocab_size, emb_dim)</code>，查表得到每个 token 的 768 维向量</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="位置编码"><span class="txt"><b>位置编码</b>：让模型感知 token 顺序 <span class="hint">（GPT 使用可学习的位置嵌入，而非正弦函数）</span></span></label>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">📐</span> 核心概念</div>
+      <div class="formula"><div class="f-name">滑动窗口：输入 = tokens[i : i+context_length]，目标 = tokens[i+1 : i+context_length+1]</div>
+        <span style="font-family:Menlo,monospace;font-size:13px;">input_chunk = encoded[idx:idx+max_length] &nbsp;·&nbsp; target_chunk = encoded[idx+1:idx+1+max_length]</span>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">📄</span> 对应源码</div>
+      <div class="codes">
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch02/01_main-chapter-code/ch02.ipynb"><span class="ext ipynb">ipynb</span><span class="fn">ch02.ipynb</span><span class="d">主章代码</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch02/01_main-chapter-code/dataloader.ipynb"><span class="ext ipynb">ipynb</span><span class="fn">dataloader.ipynb</span><span class="d">数据加载器</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch02/01_main-chapter-code/the-verdict.txt"><span class="ext txt">txt</span><span class="fn">the-verdict.txt</span><span class="d">训练语料</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch02/05_bpe-from-scratch/bpe-from-scratch.ipynb"><span class="ext ipynb">ipynb</span><span class="fn">bpe-from-scratch.ipynb</span><span class="d">BPE 手写实现</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/tree/main/LLMs-from-scratch-main/ch02/02_bonus_bytepair-encoder/"><span class="ext dir">dir</span><span class="fn">02_bonus_bytepair-encoder</span><span class="d">BPE 扩展</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH3 ============ -->
+<section class="chapter" id="ch3">
+  <div class="chapter-head" onclick="toggleCh(this)">
+    <div class="ch-num">3</div>
+    <div class="ch-head-main">
+      <h3>编码注意力机制</h3>
+      <div class="en">Coding Attention Mechanisms</div>
+      <div class="goal">🎯 <b>目标：</b>从零实现注意力——从最简单的自注意力，到可训练、带因果掩码、再到多头注意力。</div>
+    </div>
+    <div class="ch-toggle">▾</div>
+  </div>
+  <div class="chapter-body">
+    <div class="ch-block">
+      <div class="label"><span class="ic">🧩</span> 关键知识点</div>
+      <div class="kp">
+        <label class="kp-item"><input type="checkbox" data-kp="长序列问题"><span class="txt"><b>长序列建模难题</b>：RNN 难以并行、信息易丢失 → 注意力机制解决</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="自注意力"><span class="txt"><b>自注意力</b>：每个 token 对所有 token 计算相关性权重，聚合上下文信息</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="QKV"><span class="txt"><b>Q / K / V 三元组</b>：Query 查询、Key 键、Value 值——通过三个权重矩阵投影得到</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="缩放因子"><span class="txt"><b>缩放因子 √dₖ</b>：防止点积过大导致 softmax 梯度消失</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="因果注意力"><span class="txt"><b>因果注意力（掩码）</b>：用上三角掩码屏蔽未来 token，保证自回归生成</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="dropout"><span class="txt"><b>Dropout</b>：训练时随机丢弃注意力权重，防止过拟合</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="多头注意力"><span class="txt"><b>多头注意力</b>：并行多个注意力头捕捉不同子空间，再拼接投影</span></label>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">📐</span> 核心公式</div>
+      <div class="grid2">
+        <div class="formula"><div class="f-name">缩放点积注意力（自注意力）</div>
+          $$\text{Attention}(Q,K,V)=\text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V$$
+        </div>
+        <div class="formula"><div class="f-name">因果注意力掩码</div>
+          $$\text{Attn}=\text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}+M\right)V,\quad M_{ij}=\begin{cases}0 & j\le i\\-\infty & j>i\end{cases}$$
+        </div>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">📄</span> 对应源码</div>
+      <div class="codes">
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch03/01_main-chapter-code/ch03.ipynb"><span class="ext ipynb">ipynb</span><span class="fn">ch03.ipynb</span><span class="d">主章代码</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch03/01_main-chapter-code/multihead-attention.ipynb"><span class="ext ipynb">ipynb</span><span class="fn">multihead-attention.ipynb</span><span class="d">多头注意力</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/tree/main/LLMs-from-scratch-main/ch03/02_bonus_efficient-multihead-attention/"><span class="ext dir">dir</span><span class="fn">02_bonus_efficient-multihead-attention</span><span class="d">高效多头注意力</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/tree/main/LLMs-from-scratch-main/ch03/03_understanding-buffers/"><span class="ext dir">dir</span><span class="fn">03_understanding-buffers</span><span class="d">理解 buffer</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH4 ============ -->
+<section class="chapter" id="ch4">
+  <div class="chapter-head" onclick="toggleCh(this)">
+    <div class="ch-num">4</div>
+    <div class="ch-head-main">
+      <h3>从零实现 GPT 模型生成文本</h3>
+      <div class="en">Implementing a GPT Model from Scratch</div>
+      <div class="goal">🎯 <b>目标：</b>把前两章的积木组装成完整的 GPT 模型，并让它能生成文本——这是全书第一个里程碑。</div>
+    </div>
+    <div class="ch-toggle">▾</div>
+  </div>
+  <div class="chapter-body">
+    <div class="ch-block">
+      <div class="label"><span class="ic">🧩</span> 关键知识点</div>
+      <div class="kp">
+        <label class="kp-item"><input type="checkbox" data-kp="层归一化"><span class="txt"><b>LayerNorm 层归一化</b>：稳定训练、加速收敛 <span class="hint">（GPT-2 放在注意力/前馈之前，pre-norm）</span></span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="GELU"><span class="txt"><b>GELU 激活 + 前馈网络</b>：FFN 做非线性变换，先升维(4×)再降维</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="残差连接"><span class="txt"><b>残差连接（Shortcut）</b>：<code>x + sublayer(x)</code>，缓解梯度消失、让深层网络可训练</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="Transformer block"><span class="txt"><b>Transformer 块</b>：多头注意力 + 前馈网络，各带残差与 LayerNorm</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="GPT 模型组装"><span class="txt"><b>GPT 模型</b>：Embedding → 12× Transformer 块 → 最终 LayerNorm → 输出头（logits）</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="文本生成"><span class="txt"><b>文本生成</b>：softmax 采样下一个 token，拼回输入循环生成</span></label>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">⚙️</span> GPT-2 124M 配置（本书实现目标）</div>
+      <div class="config">
+        <div class="cfg"><div class="v">50,257</div><div class="k">vocab_size 词表</div></div>
+        <div class="cfg"><div class="v">1024</div><div class="k">context_length 上下文</div></div>
+        <div class="cfg"><div class="v">768</div><div class="k">emb_dim 嵌入维度</div></div>
+        <div class="cfg"><div class="v">12</div><div class="k">n_heads 注意力头</div></div>
+        <div class="cfg"><div class="v">12</div><div class="k">n_layers 层数</div></div>
+        <div class="cfg"><div class="v">0.1</div><div class="k">drop_rate 丢弃率</div></div>
+        <div class="cfg"><div class="v">~124M</div><div class="k">总参数量</div></div>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">📐</span> 核心公式</div>
+      <div class="grid2">
+        <div class="formula"><div class="f-name">Layer Normalization</div>
+          $$\hat{x}=\frac{x-\mu}{\sqrt{\sigma^2+\epsilon}}\,\gamma+\beta$$
+        </div>
+        <div class="formula"><div class="f-name">GELU 激活（近似式）</div>
+          $$\text{GELU}(x)\approx 0.5x\left[1+\tanh\!\left(\sqrt{\tfrac{2}{\pi}}\,(x+0.044715x^3)\right)\right]$$
+        </div>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">📄</span> 对应源码</div>
+      <div class="codes">
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch04/01_main-chapter-code/gpt.py"><span class="ext py">py</span><span class="fn">gpt.py</span><span class="d">完整 GPT 模型 ⭐</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch04/01_main-chapter-code/ch04.ipynb"><span class="ext ipynb">ipynb</span><span class="fn">ch04.ipynb</span><span class="d">主章代码</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/pkg/llms_from_scratch/ch04.py"><span class="ext py">py</span><span class="fn">pkg/ch04.py</span><span class="d">参考实现</span></a>
+      </div>
+    </div>
+    <div class="note good"><span class="ni">🏁</span><span>完成第 4 章后，你已经拥有一个结构完整的 GPT 模型了！只是权重还是随机的——第 5 章让它真正学会语言。</span></div>
+  </div>
+</section>
+
+<!-- ============ CH5 ============ -->
+<section class="chapter" id="ch5">
+  <div class="chapter-head" onclick="toggleCh(this)">
+    <div class="ch-num">5</div>
+    <div class="ch-head-main">
+      <h3>无标注数据预训练</h3>
+      <div class="en">Pretraining on Unlabeled Data</div>
+      <div class="goal">🎯 <b>目标：</b>用交叉熵损失训练 GPT 模型，掌握训练循环、解码策略，并能加载 OpenAI 官方预训练权重。</div>
+    </div>
+    <div class="ch-toggle">▾</div>
+  </div>
+  <div class="chapter-body">
+    <div class="ch-block">
+      <div class="label"><span class="ic">🧩</span> 关键知识点</div>
+      <div class="kp">
+        <label class="kp-item"><input type="checkbox" data-kp="文本生成损失"><span class="txt"><b>文本生成损失</b>：交叉熵 = 下一个 token 的负对数似然，衡量「预测下一个词」的准确度</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="训练验证损失"><span class="txt"><b>训练集 / 验证集损失</b>：分别计算，监控是否过拟合</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="训练循环"><span class="txt"><b>训练循环</b>：批量前向 → 反向传播 → 梯度下降更新权重（AdamW 优化器）</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="温度采样"><span class="txt"><b>温度缩放（Temperature）</b>：T&gt;1 更随机多样，T&lt;1 更确定保守</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="top-k 采样"><span class="txt"><b>Top-k 采样</b>：只从概率最高的 k 个 token 中采样，避免低概率噪声</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="保存加载权重"><span class="txt"><b>保存 / 加载权重</b>：<code>torch.save</code> / <code>torch.load</code> 持久化模型</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="加载 OpenAI 权重"><span class="txt"><b>加载 OpenAI 预训练权重</b>：下载 GPT-2 官方权重并映射到我们的模型结构</span></label>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">📐</span> 核心公式</div>
+      <div class="grid2">
+        <div class="formula"><div class="f-name">交叉熵损失（下一个 token 预测）</div>
+          $$\mathcal{L}=-\frac{1}{N}\sum_{i=1}^{N}\log p(y_i\mid x_{\le i})$$
+        </div>
+        <div class="formula"><div class="f-name">带温度的 softmax</div>
+          $$p_i=\frac{\exp(z_i/T)}{\sum_{j}\exp(z_j/T)}$$
+        </div>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">📄</span> 对应源码</div>
+      <div class="codes">
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch05/01_main-chapter-code/ch05.ipynb"><span class="ext ipynb">ipynb</span><span class="fn">ch05.ipynb</span><span class="d">主章代码</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch05/01_main-chapter-code/gpt_train.py"><span class="ext py">py</span><span class="fn">gpt_train.py</span><span class="d">训练循环 ⭐</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch05/01_main-chapter-code/gpt_generate.py"><span class="ext py">py</span><span class="fn">gpt_generate.py</span><span class="d">文本生成 ⭐</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch05/01_main-chapter-code/gpt_download.py"><span class="ext py">py</span><span class="fn">gpt_download.py</span><span class="d">下载 OpenAI 权重</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/pkg/llms_from_scratch/ch05.py"><span class="ext py">py</span><span class="fn">pkg/ch05.py</span><span class="d">参考实现</span></a>
+      </div>
+    </div>
+    <div class="note warn"><span class="ni">⏳</span><span>在笔记本上从头预训练 124M 模型耗时较长，本书教学环境约需 15–25 分钟一个 epoch。建议：先在 the-verdict 小语料上跑通，再考虑 Gutenberg 扩展语料。</span></div>
+  </div>
+</section>
+
+<!-- ============ CH6 ============ -->
+<section class="chapter" id="ch6">
+  <div class="chapter-head" onclick="toggleCh(this)">
+    <div class="ch-num">6</div>
+    <div class="ch-head-main">
+      <h3>分类微调</h3>
+      <div class="en">Fine-tuning for Classification</div>
+      <div class="goal">🎯 <b>目标：</b>在预训练基座上添加分类头，用带标签数据微调，得到垃圾邮件分类器。</div>
+    </div>
+    <div class="ch-toggle">▾</div>
+  </div>
+  <div class="chapter-body">
+    <div class="ch-block">
+      <div class="label"><span class="ic">🧩</span> 关键知识点</div>
+      <div class="kp">
+        <label class="kp-item"><input type="checkbox" data-kp="微调分类"><span class="txt"><b>微调分类</b>：在预训练 LLM 上微调完成下游任务 <span class="hint">（指令微调是另一种形式，见第 7 章）</span></span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="数据集准备"><span class="txt"><b>数据集准备</b>：构建 (文本, 标签) 对，如「垃圾/正常」邮件</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="数据加载器"><span class="txt"><b>数据加载器</b>：用 PyTorch DataLoader 组织批次，统一填充长度</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="分类头"><span class="txt"><b>添加分类头</b>：取最后一个 token 的隐藏状态 → 线性层 → 类别数</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="分类损失准确率"><span class="txt"><b>分类损失与准确率</b>：交叉熵损失 + 预测正确率，评估分类性能</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="微调策略"><span class="txt"><b>微调策略</b>：冻结主干（可选）只训分类头，或全参数微调</span></label>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">📐</span> 核心概念</div>
+      <div class="formula"><div class="f-name">分类头：取最后一个 token 的隐藏向量 → 线性投影 → logits</div>
+        <span style="font-family:Menlo,monospace;font-size:13px;">h_last = out[:, -1, :] &nbsp;→&nbsp; logits = nn.Linear(emb_dim, num_classes)(h_last)</span>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">📄</span> 对应源码</div>
+      <div class="codes">
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch06/01_main-chapter-code/ch06.ipynb"><span class="ext ipynb">ipynb</span><span class="fn">ch06.ipynb</span><span class="d">主章代码</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch06/01_main-chapter-code/gpt_class_finetune.py"><span class="ext py">py</span><span class="fn">gpt_class_finetune.py</span><span class="d">分类微调 ⭐</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/tree/main/LLMs-from-scratch-main/ch06/03_bonus_imdb-classification/"><span class="ext dir">dir</span><span class="fn">03_bonus_imdb-classification</span><span class="d">IMDB 情感分类</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/pkg/llms_from_scratch/ch06.py"><span class="ext py">py</span><span class="fn">pkg/ch06.py</span><span class="d">参考实现</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH7 ============ -->
+<section class="chapter" id="ch7">
+  <div class="chapter-head" onclick="toggleCh(this)">
+    <div class="ch-num">7</div>
+    <div class="ch-head-main">
+      <h3>指令微调</h3>
+      <div class="en">Fine-tuning to Follow Instructions</div>
+      <div class="goal">🎯 <b>目标：</b>用「指令-回答」数据集微调模型，让它成为遵循指令的对话助手（ChatGPT 同款范式）。</div>
+    </div>
+    <div class="ch-toggle">▾</div>
+  </div>
+  <div class="chapter-body">
+    <div class="ch-block">
+      <div class="label"><span class="ic">🧩</span> 关键知识点</div>
+      <div class="kp">
+        <label class="kp-item"><input type="checkbox" data-kp="指令微调概念"><span class="txt"><b>指令微调</b>：在「指令 → 期望回答」数据上微调，让模型学会遵循指令 <span class="hint">（相比分类微调更通用）</span></span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="指令数据集"><span class="txt"><b>指令数据集</b>：JSON 格式的 <code>{"instruction","input","output"}</code> 三元组</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="Alpaca 格式"><span class="txt"><b>Alpaca 风格提示模板</b>：用 <code>### Instruction / ### Input / ### Response</code> 组织训练样本</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="批处理"><span class="txt"><b>组织训练批次</b>：统一长度（填充/截断），并对 padding 位置屏蔽损失</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="指令微调训练"><span class="txt"><b>指令微调训练</b>：只对「回答部分」计算损失，指令部分不参与</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="评估"><span class="txt"><b>评估微调模型</b>：用 Ollama / 测试集对比回答质量，生成并保存响应</span></label>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">📄</span> 对应源码</div>
+      <div class="codes">
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch07/01_main-chapter-code/ch07.ipynb"><span class="ext ipynb">ipynb</span><span class="fn">ch07.ipynb</span><span class="d">主章代码</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch07/01_main-chapter-code/gpt_instruction_finetuning.py"><span class="ext py">py</span><span class="fn">gpt_instruction_finetuning.py</span><span class="d">指令微调 ⭐</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch07/01_main-chapter-code/instruction-data.json"><span class="ext json">json</span><span class="fn">instruction-data.json</span><span class="d">指令数据集</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch07/04_preference-tuning-with-dpo/dpo-from-scratch.ipynb"><span class="ext ipynb">ipynb</span><span class="fn">dpo-from-scratch.ipynb</span><span class="d">DPO 偏好对齐</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/pkg/llms_from_scratch/ch07.py"><span class="ext py">py</span><span class="fn">pkg/ch07.py</span><span class="d">参考实现</span></a>
+      </div>
+    </div>
+    <div class="note good"><span class="ni">🏁</span><span>走完第 7 章，你就完整复刻了「ChatGPT 训练范式」：预训练 → 监督指令微调（SFT）→ 偏好对齐（DPO/RLHF）。恭喜，你已经会从头写一个大模型了！</span></div>
+  </div>
+</section>
+
+<!-- ===================== APPENDICES ===================== -->
+<section class="chapter" id="appendix">
+  <div class="chapter-head" onclick="toggleCh(this)">
+    <div class="ch-num">A</div>
+    <div class="ch-head-main">
+      <h3>附录 A：PyTorch 入门</h3>
+      <div class="en">Introduction to PyTorch</div>
+      <div class="goal">🎯 <b>目标：</b>掌握本书所需的 PyTorch 基础——张量、自动求导、模型定义、DataLoader、多 GPU 训练。</div>
+    </div>
+    <div class="ch-toggle">▾</div>
+  </div>
+  <div class="chapter-body">
+    <div class="ch-block">
+      <div class="label"><span class="ic">🧩</span> 关键知识点</div>
+      <div class="kp">
+        <label class="kp-item"><input type="checkbox" data-kp="张量"><span class="txt"><b>张量（Tensor）</b>：PyTorch 的核心数据结构，支持 GPU 加速</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="自动求导"><span class="txt"><b>自动求导（autograd）</b>：反向传播自动计算梯度</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="模型定义"><span class="txt"><b>定义模型</b>：继承 <code>nn.Module</code>，<code>forward()</code> 定义前向传播</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="DataLoader"><span class="txt"><b>DataLoader</b>：批处理、shuffle、并行加载数据</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="DDP"><span class="txt"><b>多 GPU 训练（DDP）</b>：DistributedDataParallel 分布式数据并行</span></label>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">📄</span> 对应源码</div>
+      <div class="codes">
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/appendix-A/01_main-chapter-code/code-part1.ipynb"><span class="ext ipynb">ipynb</span><span class="fn">code-part1.ipynb</span><span class="d">PyTorch 基础</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/appendix-A/01_main-chapter-code/code-part2.ipynb"><span class="ext ipynb">ipynb</span><span class="fn">code-part2.ipynb</span><span class="d">进阶训练</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/appendix-A/01_main-chapter-code/DDP-script.py"><span class="ext py">py</span><span class="fn">DDP-script.py</span><span class="d">DDP 训练脚本</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="chapter" id="appendix-d">
+  <div class="chapter-head" onclick="toggleCh(this)">
+    <div class="ch-num">D</div>
+    <div class="ch-head-main">
+      <h3>附录 D：为训练循环添加优化</h3>
+      <div class="en">Adding Bells and Whistles to the Training Loop</div>
+      <div class="goal">🎯 <b>目标：</b>工程化训练循环——余弦学习率调度、梯度裁剪、权重衰减，让训练更稳定、效果更好。</div>
+    </div>
+    <div class="ch-toggle">▾</div>
+  </div>
+  <div class="chapter-body">
+    <div class="ch-block">
+      <div class="label"><span class="ic">🧩</span> 关键知识点</div>
+      <div class="kp">
+        <label class="kp-item"><input type="checkbox" data-kp="余弦学习率"><span class="txt"><b>余弦学习率调度</b>：预热后按余弦曲线衰减，训练更平滑</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="梯度裁剪"><span class="txt"><b>梯度裁剪</b>：限制梯度范数上限，防止梯度爆炸</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="权重衰减"><span class="txt"><b>权重衰减</b>：L2 正则化，防止过拟合</span></label>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">📄</span> 对应源码</div>
+      <div class="codes">
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/appendix-D/01_main-chapter-code/appendix-D.ipynb"><span class="ext ipynb">ipynb</span><span class="fn">appendix-D.ipynb</span><span class="d">训练循环增强</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="chapter" id="appendix-e">
+  <div class="chapter-head" onclick="toggleCh(this)">
+    <div class="ch-num">E</div>
+    <div class="ch-head-main">
+      <h3>附录 E：LoRA 参数高效微调</h3>
+      <div class="en">Parameter-Efficient Fine-tuning with LoRA</div>
+      <div class="goal">🎯 <b>目标：</b>用 LoRA 只训练低秩适配矩阵，大幅降低显存占用，实现高效微调。</div>
+    </div>
+    <div class="ch-toggle">▾</div>
+  </div>
+  <div class="chapter-body">
+    <div class="ch-block">
+      <div class="label"><span class="ic">🧩</span> 关键知识点</div>
+      <div class="kp">
+        <label class="kp-item"><input type="checkbox" data-kp="LoRA 原理"><span class="txt"><b>LoRA 原理</b>：冻结原权重 W，学习低秩分解 ΔW = A·B，只训练 A、B 小矩阵</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="秩 r"><span class="txt"><b>秩 r</b>：r 越小参数量越少；通常 r=4~16 即可媲美全参微调</span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="显存收益"><span class="txt"><b>显存收益</b>：无需存储主干梯度，可在消费级 GPU 微调大模型</span></label>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">📄</span> 对应源码</div>
+      <div class="codes">
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/appendix-E/01_main-chapter-code/appendix-E.ipynb"><span class="ext ipynb">ipynb</span><span class="fn">appendix-E.ipynb</span><span class="d">LoRA 实现</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== EXTRAS ===================== -->
+<section class="chapter" id="extras">
+  <div class="chapter-head" onclick="toggleCh(this)">
+    <div class="ch-num">+</div>
+    <div class="ch-head-main">
+      <h3>进阶扩展代码（Beyond the Book）</h3>
+      <div class="en">Bonus Content in This Repository</div>
+      <div class="goal">🎯 <b>目标：</b>掌握基础后，用仓库中的扩展代码深入现代 LLM 技术——KV Cache、GQA、MoE、Llama 转换、DPO 等。</div>
+    </div>
+    <div class="ch-toggle">▾</div>
+  </div>
+  <div class="chapter-body">
+    <div class="ch-block">
+      <div class="label"><span class="ic">🚀</span> 进阶主题</div>
+      <div class="kp">
+        <label class="kp-item"><input type="checkbox" data-kp="KV Cache"><span class="txt"><b>KV Cache</b>：缓存已计算的 K/V，避免重复计算，推理加速 <span class="hint">（ch04/03_kv-cache）</span></span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="GQA"><span class="txt"><b>GQA 分组查询注意力</b>：多组 Q 共享 K/V，降低显存 <span class="hint">（ch04/04_gqa）</span></span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="MoE"><span class="txt"><b>MoE 混合专家</b>：稀疏激活专家网络，参数多但计算省 <span class="hint">（ch04/07_moe）</span></span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="Llama 转换"><span class="txt"><b>GPT → Llama 转换</b>：RoPE、RMSNorm、SwiGLU 等 Llama 架构改动 <span class="hint">（ch05/07_gpt_to_llama）</span></span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="Muon 优化器"><span class="txt"><b>Muon 优化器</b>：新型动量优化器，训练更快 <span class="hint">（ch05/18_muon）</span></span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="DPO"><span class="txt"><b>DPO 偏好对齐</b>：无需奖励模型的 RLHF 替代方案 <span class="hint">（ch07/04_preference-tuning-with-dpo）</span></span></label>
+        <label class="kp-item"><input type="checkbox" data-kp="Gutenberg 预训练"><span class="txt"><b>更大规模预训练</b>：在 Gutenberg 语料上实践完整预训练 <span class="hint">（ch05/03_bonus_pretraining_on_gutenberg）</span></span></label>
+      </div>
+    </div>
+    <div class="ch-block">
+      <div class="label"><span class="ic">📄</span> 扩展源码索引</div>
+      <div class="codes">
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch04/03_kv-cache/gpt_with_kv_cache.py"><span class="ext py">py</span><span class="fn">gpt_with_kv_cache.py</span><span class="d">KV Cache</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch04/04_gqa/gpt_with_kv_gqa.py"><span class="ext py">py</span><span class="fn">gpt_with_kv_gqa.py</span><span class="d">GQA</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch04/07_moe/gpt_with_kv_moe.py"><span class="ext py">py</span><span class="fn">gpt_with_kv_moe.py</span><span class="d">MoE</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch05/07_gpt_to_llama/converting-gpt-to-llama2.ipynb"><span class="ext ipynb">ipynb</span><span class="fn">converting-gpt-to-llama2.ipynb</span><span class="d">GPT→Llama2</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch05/18_muon/gpt_train_muon.py"><span class="ext py">py</span><span class="fn">gpt_train_muon.py</span><span class="d">Muon 训练</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/ch05/03_bonus_pretraining_on_gutenberg/pretraining_simple.py"><span class="ext py">py</span><span class="fn">pretraining_simple.py</span><span class="d">Gutenberg 预训练</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/pkg/llms_from_scratch/llama3.py"><span class="ext py">py</span><span class="fn">llama3.py</span><span class="d">Llama3 实现</span></a>
+        <a class="code-link" href="https://github.com/liuyushugreat/llm-notes/blob/main/LLMs-from-scratch-main/pkg/llms_from_scratch/generate.py"><span class="ext py">py</span><span class="fn">generate.py</span><span class="d">生成工具</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FORMULAS ===================== -->
+<section id="formulas">
+  <div class="section-title">
+    <h2><span class="bar"></span>核心公式速查</h2>
+    <p>贯穿全书的关键数学，记住它们你就抓住了 LLM 的数学本质。</p>
+  </div>
+  <div class="chapter" style="padding-bottom:8px;">
+    <div class="chapter-body" style="border:none;padding-top:22px;">
+      <div class="grid2">
+        <div class="formula"><div class="f-name">① 缩放点积注意力</div>
+          $$\text{Attention}(Q,K,V)=\text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V$$
+        </div>
+        <div class="formula"><div class="f-name">② 因果掩码注意力</div>
+          $$\text{Attn}=\text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}+M\right)V$$
+        </div>
+        <div class="formula"><div class="f-name">③ 多头注意力</div>
+          $$\text{MultiHead}=\text{Concat}(\text{head}_1,\dots,\text{head}_h)W_O,\quad \text{head}_i=\text{Attention}(QW_i^Q,KW_i^K,VW_i^V)$$
+        </div>
+        <div class="formula"><div class="f-name">④ 层归一化</div>
+          $$\hat{x}=\frac{x-\mu}{\sqrt{\sigma^2+\epsilon}}\,\gamma+\beta$$
+        </div>
+        <div class="formula"><div class="f-name">⑤ GELU 激活</div>
+          $$\text{GELU}(x)\approx 0.5x\left[1+\tanh\!\left(\sqrt{\tfrac{2}{\pi}}\,(x+0.044715x^3)\right)\right]$$
+        </div>
+        <div class="formula"><div class="f-name">⑥ 交叉熵损失</div>
+          $$\mathcal{L}=-\frac{1}{N}\sum_{i=1}^{N}\log p(y_i\mid x_{\le i})$$
+        </div>
+        <div class="formula"><div class="f-name">⑦ 温度缩放</div>
+          $$p_i=\frac{\exp(z_i/T)}{\sum_{j}\exp(z_j/T)}$$
+        </div>
+        <div class="formula"><div class="f-name">⑧ 模型前向（GPT 自回归）</div>
+          $$P(x)=\prod_{t=1}^{T}p(x_t\mid x_{<t})$$
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div>📚 内容整理自《Build a Large Language Model (From Scratch)》· Sebastian Raschka · Manning 出版</div>
+  <div>🔗 源码：<a href="https://github.com/liuyushugreat/llm-notes/tree/main/LLMs-from-scratch-main/">LLMs-from-scratch-main</a> · 学习进度保存在本机浏览器</div>
+</footer>
+
+</div><!-- /main -->
+
+<script>
+  // ===== 主题切换 =====
+  const savedTheme = localStorage.getItem('llm-theme') || 'light';
+  document.body.setAttribute('data-theme', savedTheme);
+  updateThemeBtn();
+  function toggleTheme() {
+    const cur = document.body.getAttribute('data-theme');
+    const next = cur === 'light' ? 'dark' : 'light';
+    document.body.setAttribute('data-theme', next);
+    localStorage.setItem('llm-theme', next);
+    updateThemeBtn();
+  }
+  function updateThemeBtn() {
+    const dark = document.body.getAttribute('data-theme') === 'dark';
+    document.querySelector('.theme-toggle').textContent = dark ? '☀️ 浅色模式' : '🌙 深色模式';
+  }
+
+  // ===== 章节折叠 =====
+  function toggleCh(el) {
+    const ch = el.closest('.chapter');
+    ch.classList.toggle('collapsed');
+  }
+
+  // ===== 进度追踪 =====
+  const STORE_KEY = 'llm-kp-progress';
+  function loadProgress() {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch(e) { return {}; }
+  }
+  function saveProgress(p) { localStorage.setItem(STORE_KEY, JSON.stringify(p)); }
+  const progress = loadProgress();
+
+  document.querySelectorAll('.kp-item input[type=checkbox]').forEach(cb => {
+    const key = cb.dataset.kp;
+    if (progress[key]) { cb.checked = true; cb.closest('.kp-item').classList.add('done'); }
+    cb.addEventListener('change', () => {
+      if (cb.checked) progress[key] = 1; else delete progress[key];
+      saveProgress(progress);
+      cb.closest('.kp-item').classList.toggle('done', cb.checked);
+      updateProgress();
+    });
+  });
+  function updateProgress() {
+    const all = document.querySelectorAll('.kp-item input[type=checkbox]');
+    const done = document.querySelectorAll('.kp-item input[type=checkbox]:checked');
+    const pct = all.length ? Math.round(done.length / all.length * 100) : 0;
+    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('progressPct').textContent = pct + '%';
+  }
+  updateProgress();
+
+  // ===== 滚动高亮 =====
+  const navLinks = document.querySelectorAll('#sideNav a[href^="#"]');
+  const sections = [...navLinks].map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  function onScroll() {
+    let cur = sections[0] && sections[0].id;
+    const pos = window.scrollY + 120;
+    sections.forEach(sec => { if (sec.offsetTop <= pos) cur = sec.id; });
+    navLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + cur));
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+</script>
+</body>
+</html>
